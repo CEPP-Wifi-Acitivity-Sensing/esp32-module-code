@@ -1,6 +1,6 @@
-# <b>esp32-module-code</b>
-## <b>Setup</b>
-- install ESP-IDF on VSCode
+# esp32-module-code
+## Setup
+- Install ESP-IDF on VSCode via [EspressIf Official Website](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html)
 - profit
 ## csi_recv_router
 Receive CSI data from a router

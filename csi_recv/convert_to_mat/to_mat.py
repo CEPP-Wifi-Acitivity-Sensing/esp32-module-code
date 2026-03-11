@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import json
 import scipy.io as sio
+import sys
 
 def convert_to_wimans_format(input_csv, output_filename):
     # 1. Load the CSV
@@ -30,4 +31,9 @@ def convert_to_wimans_format(input_csv, output_filename):
     print(f"Successfully converted to {output_filename}.mat")
     print(f"Shape: {csi_matrix.shape}")
 
-convert_to_wimans_format('csi_output/csi_data.csv', 'wimans_ready_data')
+if len(sys.argv) == 3:
+    input_csv = sys.argv[1]
+    output_filename = sys.argv[2]
+    convert_to_wimans_format(input_csv, output_filename)
+else:
+    convert_to_wimans_format('csi_output/csi_data.csv', 'wimans_ready_data')

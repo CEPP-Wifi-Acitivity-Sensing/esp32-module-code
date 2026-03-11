@@ -1,1 +1,14 @@
-# CSI_SEND
+# csi_send
+This code is used for a normal ESP32 board
+
+## Uploading Code onto the board
+- Locate ESP-IDF extension on VScode
+- Select csi_sender workspace
+- Select ESP-IDF version
+- Select Flash Method : `UART`
+- Select Port
+    - If undetected
+         - Port is fucked
+         - The current USB-C cable doesn't support data transfer
+- Set Espressif Device Target (IDF Target) : `ESP32` > `ESP32s3 chip (via ESP-PROG)`
+- Build and Flash
