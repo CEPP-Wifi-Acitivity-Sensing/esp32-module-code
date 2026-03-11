@@ -4,5 +4,5 @@
 - profit
 ## csi_recv_router
 Receive CSI data from a router
-## csi_recv & csi_sender
+## csi_sender & csi_recv
 Used in pair to send/receive CSI data
