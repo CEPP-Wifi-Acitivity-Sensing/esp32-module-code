@@ -1,5 +1,5 @@
 # esp32-module-code
-Stolen from [github.com/espressif/esp-csi](https://github.com/espressif/esp-csi) because I have no idea how to use hithub, please check out the original creator
+Stolen from [https://github.com/espressif/esp-csi](https://github.com/espressif/esp-csi) because I have no idea how to use github, please check out the original creator
 ## Setup
 - Install ESP-IDF on VSCode via [EspressIf Official Website](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html)
 - profit
