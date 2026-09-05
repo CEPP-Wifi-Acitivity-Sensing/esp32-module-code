@@ -191,6 +191,7 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
     global fft_gains, agc_gains
     set = serial.Serial(port=port, baudrate=921600,bytesize=8, parity='N', stopbits=1)
     count =0
+    capture_start_time = None
     if set.isOpen():
         print('open success')
     else:
@@ -239,6 +240,12 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
 
         fft_gains.append(fft_gain)
         agc_gains.append(agc_gain)
+
+        if capture_start_time is None:
+            capture_start_time = time.perf_counter()
+        runtime_s = time.perf_counter() - capture_start_time
+
+        csi_data.append(f'{runtime_s:.6f}')
 
         csv_writer.writerow(csi_data)
 
@@ -295,7 +302,7 @@ class SubThread (QThread):
         save_file_fd = open(save_file_name, 'w')
         self.log_file_fd = open(log_file_name, 'w')
         self.csv_writer = csv.writer(save_file_fd)
-        self.csv_writer.writerow(DATA_COLUMNS_NAMES)
+        self.csv_writer.writerow(DATA_COLUMNS_NAMES + ['runtime_s'])
 
     def run(self):
         csi_data_read_parse(self.serial_port, self.csv_writer, self.log_file_fd,callback=self.data_ready.emit)

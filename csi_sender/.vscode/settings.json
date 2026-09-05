@@ -4,7 +4,7 @@
   "idf.toolsPathWin": "C:\\Users\\Phukawin\\.espressif",
   "idf.pythonInstallPath": "C:\\Users\\Phukawin\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
   "idf.flashType": "UART",
-  "idf.portWin": "COM3",
+  "idf.portWin": "COM4",
   "idf.monitorPort": "COM6",
   "idf.openOcdConfigs": [
     "interface/ftdi/esp_ftdi.cfg",
