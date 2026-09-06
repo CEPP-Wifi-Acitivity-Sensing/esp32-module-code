@@ -15,7 +15,12 @@ This code is used for a ESP32s3 board
 
 ## Exporting Data
 - Run
-`python .\csi_data_read_parse.py -p <PORT> -s <PATH>/<FILE_NAME>.csv`
+`python .\csi_data_read_parse.py -p <PORT> -s <PATH>/<FILE_NAME>.csv -b 1500000 --headless`
+
+- GUI mode with reduced refresh load:
+`python .\csi_data_read_parse.py -p <PORT> -b 1500000 --plot-interval-ms 250 --plot-stride 4`
+
+- The parser prints periodic capture stats (`host_fps` and `device_fps`) to help identify whether the bottleneck is host-side parsing/rendering or on-device generation.
 
 ## Converting to .mat
 - `cd convert_to_mat`

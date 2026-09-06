@@ -164,7 +164,6 @@ static void wifi_csi_rx_cb(void *ctx, wifi_csi_info_t *info)
 #endif
     }
     esp_csi_gain_ctrl_get_gain_compensation(&compensate_gain, agc_gain, fft_gain);
-    ESP_LOGI(TAG, "compensate_gain %f, agc_gain %d, fft_gain %d", compensate_gain, agc_gain, fft_gain);
 #endif
 
     uint32_t rx_id = *(uint32_t *)(info->payload + 15);
@@ -217,10 +216,10 @@ static void wifi_csi_init()
 #if CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61
     wifi_csi_config_t csi_config = {
         .enable                   = true,
-        .acquire_csi_legacy       = false,
+        .acquire_csi_legacy       = true,
         .acquire_csi_force_lltf   = CSI_FORCE_LLTF,
         .acquire_csi_ht20         = true,
-        .acquire_csi_ht40         = true,
+        .acquire_csi_ht40         = false,
         .acquire_csi_vht          = false,
         .acquire_csi_su           = false,
         .acquire_csi_mu           = false,
@@ -234,13 +233,13 @@ static void wifi_csi_init()
 #elif CONFIG_IDF_TARGET_ESP32C6
     wifi_csi_config_t csi_config = {
         .enable                 = true,
-        .acquire_csi_legacy     = false,
+        .acquire_csi_legacy     = true,
         .acquire_csi_ht20       = true,
-        .acquire_csi_ht40       = true,
-        .acquire_csi_su         = true,
-        .acquire_csi_mu         = true,
-        .acquire_csi_dcm        = true,
-        .acquire_csi_beamformed = true,
+        .acquire_csi_ht40       = false,
+        .acquire_csi_su         = false,
+        .acquire_csi_mu         = false,
+        .acquire_csi_dcm        = false,
+        .acquire_csi_beamformed = false,
         .acquire_csi_he_stbc    = 2,
         .val_scale_cfg          = false,
         .dump_ack_en            = false,
@@ -249,8 +248,8 @@ static void wifi_csi_init()
 #else
     wifi_csi_config_t csi_config = {
         .lltf_en           = true,
-        .htltf_en          = true,
-        .stbc_htltf2_en    = true,
+        .htltf_en          = false,
+        .stbc_htltf2_en    = false,
         .ltf_merge_en      = true,
         .channel_filter_en = true,
         .manu_scale        = false,
