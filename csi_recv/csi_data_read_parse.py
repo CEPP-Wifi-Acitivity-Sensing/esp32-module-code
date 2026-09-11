@@ -35,8 +35,11 @@ from scipy.stats import linregress
 import statsmodels.api as sm
 
 # Reduce displayed waveforms to avoid display freezes
-CSI_VAID_SUBCARRIER_INTERVAL = 1
+CSI_VAID_SUBCARRIER_INTERVAL = 4
 csi_vaid_subcarrier_len =0
+DEFAULT_SERIAL_BAUDRATE = 1500000
+DEFAULT_PLOT_INTERVAL_MS = 250
+DEFAULT_FPS_REPORT_INTERVAL = 100
 
 CSI_DATA_INDEX = 200  # buffer size
 CSI_DATA_COLUMNS = 490
@@ -54,7 +57,7 @@ fft_gains = []
 agc_gains = []
 
 class csi_data_graphical_window(QWidget):
-    def __init__(self):
+    def __init__(self, plot_interval_ms: int = DEFAULT_PLOT_INTERVAL_MS):
         super().__init__()
 
         self.resize(1280, 900)
@@ -129,15 +132,15 @@ class csi_data_graphical_window(QWidget):
 
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.update_data)
-        self.timer.start(100)
+        self.timer.start(plot_interval_ms)
         self.deta_len = 0
 
     def update_curve_colors(self, color_list):
         self.deta_len = len(color_list)
         self.iq_colors = color_list
         self.plotWidget_ted.setXRange(0, self.deta_len//2)
-        for i in range(self.deta_len):
-            self.curve_list[i].setPen(color_list[i])
+        for i in range(0, self.deta_len, CSI_VAID_SUBCARRIER_INTERVAL):
+            self.curve_list[i + 2].setPen(color_list[i])
             self.curve_phase_list[i].setPen(color_list[i])
 
     def update_data(self):
@@ -162,11 +165,11 @@ class csi_data_graphical_window(QWidget):
 
         self.curve.setData(self.csi_row_data)
 
-        self.curve_list[CSI_DATA_COLUMNS].setData(agc_gain_data)
-        self.curve_list[CSI_DATA_COLUMNS+1].setData(fft_gain_data)
+        self.curve_list[0].setData(agc_gain_data)
+        self.curve_list[1].setData(fft_gain_data)
 
-        for i in range(CSI_DATA_COLUMNS):
-            self.curve_list[i].setData(self.csi_amplitude_array[:, i])
+        for i in range(0, CSI_DATA_COLUMNS, CSI_VAID_SUBCARRIER_INTERVAL):
+            self.curve_list[i + 2].setData(self.csi_amplitude_array[:, i])
             self.curve_phase_list[i].setData(self.csi_phase_array[:, i])
 
 def generate_subcarrier_colors(red_range, green_range, yellow_range, total_num,interval=1):
@@ -187,21 +190,26 @@ def generate_subcarrier_colors(red_range, green_range, yellow_range, total_num,i
     return colors
 
 
-def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
+def csi_data_read_parse(port: str, baudrate: int, csv_writer, log_file_fd, callback=None,
+                        enable_plot_processing: bool = True, fps_report_interval: int = DEFAULT_FPS_REPORT_INTERVAL):
     global fft_gains, agc_gains
-    set = serial.Serial(port=port, baudrate=921600,bytesize=8, parity='N', stopbits=1)
+    serial_dev = serial.Serial(port=port, baudrate=baudrate, bytesize=8, parity='N', stopbits=1, timeout=1)
     count =0
     capture_start_time = None
-    if set.isOpen():
+    frame_count = 0
+    perf_window_start = None
+    first_device_timestamp = None
+    last_device_timestamp = None
+    if serial_dev.isOpen():
         print('open success')
     else:
         print('open failed')
         return
     while True:
-        strings = str(set.readline())
-        if not strings:
+        line = serial_dev.readline()
+        if not line:
             break
-        strings = strings.lstrip('b\'').rstrip('\\r\\n\'')
+        strings = line.decode('utf-8', errors='ignore').strip()
         index = strings.find('CSI_DATA')
 
         if index == -1:
@@ -237,6 +245,11 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
 
         fft_gain = int(csi_data[6])
         agc_gain = int(csi_data[7])
+        ts_index = 9 if len(csi_data) == len(DATA_COLUMNS_NAMES_C5C6) else 18
+        device_timestamp = int(csi_data[ts_index])
+        if first_device_timestamp is None:
+            first_device_timestamp = device_timestamp
+        last_device_timestamp = device_timestamp
 
         fft_gains.append(fft_gain)
         agc_gains.append(agc_gain)
@@ -249,16 +262,27 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
 
         csv_writer.writerow(csi_data)
 
-        # Rotate data to the left
-        # csi_data_array[:-1] = csi_data_array[1:]
-        # csi_data_phase[:-1] = csi_data_phase[1:]
-        csi_data_complex[:-1] = csi_data_complex[1:]
-        agc_gain_data[:-1] = agc_gain_data[1:]
-        fft_gain_data[:-1] = fft_gain_data[1:]
-        agc_gain_data[-1] = agc_gain
-        fft_gain_data[-1] = fft_gain
+        frame_count += 1
+        if perf_window_start is None:
+            perf_window_start = time.perf_counter()
+        elif frame_count % fps_report_interval == 0:
+            now = time.perf_counter()
+            host_window_s = now - perf_window_start
+            host_fps = fps_report_interval / host_window_s if host_window_s > 0 else 0.0
+            device_elapsed_ms = (last_device_timestamp - first_device_timestamp) if first_device_timestamp is not None else 0
+            device_fps = (frame_count / (device_elapsed_ms / 1000.0)) if device_elapsed_ms > 0 else 0.0
+            print(f'[stats] frames={frame_count} host_fps={host_fps:.2f} device_fps={device_fps:.2f}')
+            perf_window_start = now
 
-        if count ==0:
+        if enable_plot_processing:
+            # Rotate data to the left
+            csi_data_complex[:-1] = csi_data_complex[1:]
+            agc_gain_data[:-1] = agc_gain_data[1:]
+            fft_gain_data[:-1] = fft_gain_data[1:]
+            agc_gain_data[-1] = agc_gain
+            fft_gain_data[-1] = fft_gain
+
+        if count ==0 and callback is not None:
             count = 1
             print('none',csi_data_len)
             if csi_data_len == 106:
@@ -286,26 +310,31 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd,callback=None):
                 colors = generate_subcarrier_colors((0,raw_len//2), (raw_len//2+1,raw_len-1), None, raw_len)
             callback(colors)
 
-        for i in range(csi_data_len // 2):
-            csi_data_complex[-1][i] = complex(csi_raw_data[i * 2 + 1],
-                                            csi_raw_data[i * 2])
-    set.close()
+        if enable_plot_processing:
+            for i in range(csi_data_len // 2):
+                csi_data_complex[-1][i] = complex(csi_raw_data[i * 2 + 1],
+                                                csi_raw_data[i * 2])
+    serial_dev.close()
     return
 
 
 class SubThread (QThread):
     data_ready = pyqtSignal(object)
-    def __init__(self, serial_port, save_file_name, log_file_name):
+    def __init__(self, serial_port, baudrate, save_file_name, log_file_name, fps_report_interval):
         super().__init__()
         self.serial_port = serial_port
+        self.baudrate = baudrate
+        self.fps_report_interval = fps_report_interval
 
-        save_file_fd = open(save_file_name, 'w')
+        save_file_fd = open(save_file_name, 'w', newline='', buffering=1024 * 1024)
         self.log_file_fd = open(log_file_name, 'w')
         self.csv_writer = csv.writer(save_file_fd)
         self.csv_writer.writerow(DATA_COLUMNS_NAMES + ['runtime_s'])
 
     def run(self):
-        csi_data_read_parse(self.serial_port, self.csv_writer, self.log_file_fd,callback=self.data_ready.emit)
+        csi_data_read_parse(self.serial_port, self.baudrate, self.csv_writer, self.log_file_fd,
+                            callback=self.data_ready.emit, enable_plot_processing=True,
+                            fps_report_interval=self.fps_report_interval)
 
     def __del__(self):
         self.wait()
@@ -325,19 +354,43 @@ if __name__ == '__main__':
                         help='Save the data printed by the serial port to a file') 
     parser.add_argument('-l', '--log', dest='log_file', action='store', default='./csi_data_log.txt',
                         help='Save other serial data the bad CSI data to a log file')
+    parser.add_argument('-b', '--baudrate', dest='baudrate', action='store', type=int,
+                        default=DEFAULT_SERIAL_BAUDRATE,
+                        help='Serial baudrate (must match ESP-IDF monitor UART baudrate)')
+    parser.add_argument('--headless', action='store_true',
+                        help='Run capture without Qt visualization for higher throughput')
+    parser.add_argument('--fps-report-interval', dest='fps_report_interval', action='store', type=int,
+                        default=DEFAULT_FPS_REPORT_INTERVAL,
+                        help='Frames between host/device FPS diagnostic prints')
+    parser.add_argument('--plot-interval-ms', dest='plot_interval_ms', action='store', type=int,
+                        default=DEFAULT_PLOT_INTERVAL_MS,
+                        help='Qt plot refresh period in milliseconds')
+    parser.add_argument('--plot-stride', dest='plot_stride', action='store', type=int, default=CSI_VAID_SUBCARRIER_INTERVAL,
+                        help='Only refresh every Nth subcarrier in GUI mode')
 
     args = parser.parse_args()
     serial_port = args.port
     file_name = args.store_file
     log_file_name = args.log_file
+    baudrate = args.baudrate
+    fps_report_interval = max(1, args.fps_report_interval)
+    CSI_VAID_SUBCARRIER_INTERVAL = max(1, args.plot_stride)
 
-    app = QApplication(sys.argv)
+    if args.headless:
+        with open(file_name, 'w', newline='', buffering=1024 * 1024) as save_file_fd, open(log_file_name, 'w') as log_file_fd:
+            csv_writer = csv.writer(save_file_fd)
+            csv_writer.writerow(DATA_COLUMNS_NAMES + ['runtime_s'])
+            csi_data_read_parse(serial_port, baudrate, csv_writer, log_file_fd,
+                                callback=None, enable_plot_processing=False,
+                                fps_report_interval=fps_report_interval)
+    else:
+        app = QApplication(sys.argv)
 
-    subthread = SubThread(serial_port, file_name, log_file_name)
+        subthread = SubThread(serial_port, baudrate, file_name, log_file_name, fps_report_interval)
 
-    window = csi_data_graphical_window()
-    subthread.data_ready.connect(window.update_curve_colors)
-    subthread.start()
-    window.show()
+        window = csi_data_graphical_window(plot_interval_ms=max(50, args.plot_interval_ms))
+        subthread.data_ready.connect(window.update_curve_colors)
+        subthread.start()
+        window.show()
 
-    sys.exit(app.exec())
+        sys.exit(app.exec())
