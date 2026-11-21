@@ -4,6 +4,7 @@
 # Data processing
 numpy
 pandas
+h5py
 
 # Serial communication
 pyserial

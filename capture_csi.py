@@ -33,6 +33,9 @@ def csi_data_read_parse(port: str, csv_writer, log_file_fd):
 
     print('open success')
     while True:
+        if time.monotonic() - start_time > 300:
+            print('capture timeout')
+            break
         line = serial_port.readline()
         if not line:
             break
@@ -105,6 +108,8 @@ if __name__ == '__main__':
                         help='Log file for non-CSI and malformed serial data')
 
     args = parser.parse_args()
+
+    time.sleep(5)  # wait for serial port to be ready
 
     with open(args.store_file, 'w', newline='', encoding='utf-8') as csv_file, \
             open(args.log_file, 'w', encoding='utf-8') as log_file:
